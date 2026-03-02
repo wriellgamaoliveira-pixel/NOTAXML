@@ -1,47 +1,77 @@
-// worker.js (classic) - versão robusta (sem libs de XML)
-// Usa: fflate para unzip + regex para extrair tags
+// worker.js (classic) - robusto e com valores corretos
+// - Unzip: fflate
+// - Parsing: regex por item <det> (evita duplicidade dos totais)
+// - Conversão numérica: aceita "1234.56" e "1.234,56"
 
 importScripts("https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js");
 
-function toNum(s) {
-  const n = parseFloat(String(s ?? "0").replace(/\./g, "").replace(",", "."));
+function toNum(v) {
+  if (v === null || v === undefined) return 0;
+  let s = String(v).trim();
+
+  // Se tiver vírgula, assume BR: 1.234,56
+  if (s.includes(",")) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  }
+  // Se não tiver vírgula, assume US: 1234.56 (não remove ponto!)
+  const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
 
-function sumTag(xmlText, tag) {
-  // soma todas ocorrências: <tag>valor</tag>
-  const re = new RegExp(`<${tag}>([^<]+)</${tag}>`, "g");
-  let m, sum = 0;
-  while ((m = re.exec(xmlText)) !== null) sum += toNum(m[1]);
-  return sum;
-}
-
-function firstTag(xmlText, tag) {
+function firstTag(text, tag) {
   const re = new RegExp(`<${tag}>([^<]+)</${tag}>`);
-  const m = xmlText.match(re);
+  const m = text.match(re);
   return m ? String(m[1]).trim() : "";
-}
-
-function getCSTICMS(xmlText) {
-  // prioridade: CSOSN (Simples) -> CST
-  const csosn = firstTag(xmlText, "CSOSN");
-  if (csosn) return `CSOSN ${csosn}`;
-  const cst = firstTag(xmlText, "CST");
-  if (cst) return `CST ${cst}`;
-  return "CST 000";
-}
-
-function getCFOP(xmlText) {
-  return firstTag(xmlText, "CFOP") || "0000";
 }
 
 function postStage(stage, message, percent, processed, total) {
   self.postMessage({ type: "stage", stage, message, percent, processed, total });
 }
-
 function postProgress(stage, processed, total) {
   const percent = total ? Math.round((processed / total) * 100) : 100;
   self.postMessage({ type: "progress", stage, percent, processed, total });
+}
+
+function getCSTICMS_fromDet(detXml) {
+  const csosn = firstTag(detXml, "CSOSN");
+  if (csosn) return `CSOSN ${csosn}`;
+  const cst = firstTag(detXml, "CST");
+  if (cst) return `CST ${cst}`;
+  return "CST 000";
+}
+
+function getCFOP_fromDet(detXml) {
+  return firstTag(detXml, "CFOP") || "0000";
+}
+
+function sumDetValues(detXml) {
+  // tenta pegar por item:
+  const vProd = toNum(firstTag(detXml, "vProd")) || 0;
+  const vICMS = toNum(firstTag(detXml, "vICMS")) || 0;
+  const vPIS = toNum(firstTag(detXml, "vPIS")) || 0;
+  const vCOFINS = toNum(firstTag(detXml, "vCOFINS")) || 0;
+
+  return { vProd, vICMS, vPIS, vCOFINS };
+}
+
+function getDetBlocks(xmlText) {
+  const dets = [];
+  const re = /<det\b[^>]*>([\s\S]*?)<\/det>/g;
+  let m;
+  while ((m = re.exec(xmlText)) !== null) {
+    dets.push(m[0]); // bloco inteiro
+  }
+  return dets;
+}
+
+function fallbackTotals(xmlText) {
+  // fallback (quando não tem <det>): tenta total do documento
+  // OBS: isso é fallback, o padrão é por <det>
+  const vProd = toNum(firstTag(xmlText, "vProd"));
+  const vICMS = toNum(firstTag(xmlText, "vICMS"));
+  const vPIS = toNum(firstTag(xmlText, "vPIS"));
+  const vCOFINS = toNum(firstTag(xmlText, "vCOFINS"));
+  return { vProd, vICMS, vPIS, vCOFINS };
 }
 
 self.onmessage = async (event) => {
@@ -54,14 +84,12 @@ self.onmessage = async (event) => {
     const zipData = new Uint8Array(zipBuffer);
     const unzipped = fflate.unzipSync(zipData);
 
-    postStage("scan", "Listando arquivos XML...", 5, 0, "-");
+    postStage("scan", "Listando XMLs...", 5, 0, "-");
 
     const names = Object.keys(unzipped).filter(n => n.toLowerCase().endsWith(".xml"));
     const total = names.length;
 
-    if (!total) {
-      throw new Error("Nenhum arquivo .xml encontrado dentro do ZIP.");
-    }
+    if (!total) throw new Error("Nenhum arquivo .xml encontrado dentro do ZIP.");
 
     const resumo = {
       total_xml: 0,
@@ -74,41 +102,56 @@ self.onmessage = async (event) => {
 
     let processed = 0;
 
-    // manda progresso com frequência (inclusive em ZIP pequeno)
-    const BATCH = 1;
-
     for (const name of names) {
       const xmlText = new TextDecoder().decode(unzipped[name]);
 
-      // IMPORTANTÍSSIMO:
-      // vProd aparece em itens e totais; aqui somamos todos vProd encontrados no XML
-      // (se depois você quiser “somar só itens”, eu ajusto)
-      const vProd = sumTag(xmlText, "vProd");
-      const vICMS = sumTag(xmlText, "vICMS");
-      const vPIS = sumTag(xmlText, "vPIS");
-      const vCOFINS = sumTag(xmlText, "vCOFINS");
+      const dets = getDetBlocks(xmlText);
 
-      resumo.total_valor_itens += vProd;
-      resumo.impostos.ICMS += vICMS;
-      resumo.impostos.PIS += vPIS;
-      resumo.impostos.COFINS += vCOFINS;
+      if (dets.length > 0) {
+        // soma por item (mais fiel)
+        for (const det of dets) {
+          const { vProd, vICMS, vPIS, vCOFINS } = sumDetValues(det);
 
-      const cst = getCSTICMS(xmlText);
-      const cfop = getCFOP(xmlText);
-      const key = `${cst}__${cfop}`;
+          resumo.total_valor_itens += vProd;
+          resumo.impostos.ICMS += vICMS;
+          resumo.impostos.PIS += vPIS;
+          resumo.impostos.COFINS += vCOFINS;
 
-      if (!resumo.por_cst_cfop[key]) {
-        resumo.por_cst_cfop[key] = { cst, cfop, qtd_xml: 0, valor_itens: 0 };
+          const cst = getCSTICMS_fromDet(det);
+          const cfop = getCFOP_fromDet(det);
+          const key = `${cst}__${cfop}`;
+
+          if (!resumo.por_cst_cfop[key]) {
+            resumo.por_cst_cfop[key] = { cst, cfop, qtd_xml: 0, valor_itens: 0 };
+          }
+          // qtd_xml aqui significa “qtd de itens” para esse CST+CFOP
+          resumo.por_cst_cfop[key].qtd_xml += 1;
+          resumo.por_cst_cfop[key].valor_itens += vProd;
+        }
+      } else {
+        // fallback se não tiver itens
+        const { vProd, vICMS, vPIS, vCOFINS } = fallbackTotals(xmlText);
+
+        resumo.total_valor_itens += vProd;
+        resumo.impostos.ICMS += vICMS;
+        resumo.impostos.PIS += vPIS;
+        resumo.impostos.COFINS += vCOFINS;
+
+        const cst = "CST 000";
+        const cfop = firstTag(xmlText, "CFOP") || "0000";
+        const key = `${cst}__${cfop}`;
+        if (!resumo.por_cst_cfop[key]) {
+          resumo.por_cst_cfop[key] = { cst, cfop, qtd_xml: 0, valor_itens: 0 };
+        }
+        resumo.por_cst_cfop[key].qtd_xml += 1;
+        resumo.por_cst_cfop[key].valor_itens += vProd;
       }
-      resumo.por_cst_cfop[key].qtd_xml += 1;
-      resumo.por_cst_cfop[key].valor_itens += vProd;
 
       resumo.total_xml += 1;
       processed += 1;
 
-      if (processed % BATCH === 0 || processed === total) {
-        postProgress("parse", processed, total);
-      }
+      // sempre manda progresso (ZIP pequeno também)
+      postProgress("parse", processed, total);
     }
 
     self.postMessage({ type: "done", result: resumo, total });
