@@ -1,6 +1,4 @@
-// worker.js (classic) - CORRIGIDO (sem DOMParser)
-// ZIP: fflate | XML parse: fast-xml-parser (funciona em Web Worker)
-
+// worker.js (classic)
 importScripts("https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js");
 importScripts("https://cdn.jsdelivr.net/npm/fast-xml-parser@4.4.1/dist/fxp.min.js");
 
@@ -9,7 +7,7 @@ const { XMLParser } = fxp;
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
-  removeNSPrefix: true,          // remove ns:Tag -> Tag (ajuda muito)
+  removeNSPrefix: true,
   parseTagValue: true,
   parseAttributeValue: true,
   trimValues: true,
@@ -20,20 +18,13 @@ function toNum(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function asArray(x) {
-  if (x === undefined || x === null) return [];
-  return Array.isArray(x) ? x : [x];
-}
-
-// Busca profunda: soma todos os valores de uma tag (ex: vICMS, vPIS, vCOFINS, vProd)
+// soma profunda por chave
 function sumAllByKey(obj, key) {
   let sum = 0;
-
   const stack = [obj];
   while (stack.length) {
     const cur = stack.pop();
     if (!cur || typeof cur !== "object") continue;
-
     for (const k of Object.keys(cur)) {
       const val = cur[k];
       if (k === key) {
@@ -47,52 +38,38 @@ function sumAllByKey(obj, key) {
   return sum;
 }
 
-// Tenta achar CFOP em vários pontos
-function getCFOP(json) {
-  // procurar primeira ocorrência de "CFOP"
-  let found = "";
-
+function getFirstByKeys(json, keys) {
   const stack = [json];
-  while (stack.length && !found) {
+  while (stack.length) {
     const cur = stack.pop();
     if (!cur || typeof cur !== "object") continue;
-
     for (const k of Object.keys(cur)) {
       const v = cur[k];
-      if (k === "CFOP" || k === "cfop") {
-        found = String(v ?? "").trim();
-        break;
-      }
+      if (keys.includes(k)) return String(v ?? "").trim();
       if (v && typeof v === "object") stack.push(v);
     }
   }
-  return found || "0000";
+  return "";
 }
 
-// Tenta achar CST/CSOSN do ICMS
+function getCFOP(json) {
+  return getFirstByKeys(json, ["CFOP", "cfop"]) || "0000";
+}
+
 function getCSTICMS(json) {
-  // procurar por CSOSN primeiro
-  let csosn = "";
-  let cst = "";
-
-  const stack = [json];
-  while (stack.length && !(csosn || cst)) {
-    const cur = stack.pop();
-    if (!cur || typeof cur !== "object") continue;
-
-    for (const k of Object.keys(cur)) {
-      const v = cur[k];
-
-      if (!csosn && k === "CSOSN") csosn = String(v ?? "").trim();
-      if (!cst && k === "CST") cst = String(v ?? "").trim();
-
-      if (v && typeof v === "object") stack.push(v);
-    }
-  }
-
+  const csosn = getFirstByKeys(json, ["CSOSN"]);
   if (csosn) return `CSOSN ${csosn}`;
+  const cst = getFirstByKeys(json, ["CST"]);
   if (cst) return `CST ${cst}`;
   return "CST 000";
+}
+
+function postStage(stage, message, percent, processed, total) {
+  self.postMessage({ type: "stage", stage, message, percent, processed, total });
+}
+
+function sleep0() {
+  return new Promise((r) => setTimeout(r, 0));
 }
 
 self.onmessage = async (event) => {
@@ -100,11 +77,19 @@ self.onmessage = async (event) => {
     const { zipBuffer } = event.data || {};
     if (!zipBuffer) throw new Error("ZIP inválido.");
 
+    postStage("unzip", "Descompactando ZIP...", 2, 0, "-");
+
     const zipData = new Uint8Array(zipBuffer);
     const unzipped = fflate.unzipSync(zipData);
 
+    postStage("scan", "Listando XMLs...", 5, 0, "-");
+
     const names = Object.keys(unzipped).filter(n => n.toLowerCase().endsWith(".xml"));
     const total = names.length;
+
+    if (!total) {
+      throw new Error("Nenhum arquivo .xml encontrado dentro do ZIP.");
+    }
 
     const resumo = {
       total_xml: 0,
@@ -115,13 +100,16 @@ self.onmessage = async (event) => {
 
     let processed = 0;
 
-    for (const name of names) {
-      const xmlText = new TextDecoder().decode(unzipped[name]);
+    // lote para não “parecer travado”
+    const BATCH = 30;
 
-      // parse XML no worker
+    postStage("parse", "Iniciando leitura dos XMLs...", 8, 0, total);
+
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const xmlText = new TextDecoder().decode(unzipped[name]);
       const json = parser.parse(xmlText);
 
-      // somatórios (busca profunda)
       const vProd = sumAllByKey(json, "vProd");
       const vICMS = sumAllByKey(json, "vICMS");
       const vPIS = sumAllByKey(json, "vPIS");
@@ -145,13 +133,15 @@ self.onmessage = async (event) => {
       resumo.total_xml += 1;
       processed += 1;
 
-      if (processed % 50 === 0 || processed === total) {
-        const percent = total ? Math.round((processed / total) * 100) : 100;
-        self.postMessage({ type: "progress", percent, processed, total });
+      // manda progresso por lote
+      if (processed % BATCH === 0 || processed === total) {
+        const percent = Math.max(10, Math.round((processed / total) * 100));
+        self.postMessage({ type: "progress", stage: "parse", percent, processed, total });
+        await sleep0(); // devolve tempo ao navegador e mantém “vivo”
       }
     }
 
-    self.postMessage({ type: "done", result: resumo });
+    self.postMessage({ type: "done", result: resumo, total });
   } catch (err) {
     self.postMessage({ type: "error", error: err?.message || String(err) });
   }
