@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatórios - Troca XML (Static)</title>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0;
+      --shadow:0 10px 24px rgba(15,23,42,.08); --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);background:var(--bg)}
+    .navbar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border)}
+    .nav-container{max-width:1100px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .nav-left{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+    .nav-logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font-weight:800}
+    .nav-links{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .nav-link{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;text-decoration:none;color:var(--text);border:1px solid transparent}
+    .nav-link:hover{background:#f1f5f9;border-color:var(--border)}
+    .nav-link.active{background:#eef2ff;border-color:#c7d2fe}
+    .container{max-width:1100px;margin:0 auto;padding:26px 18px 60px}
+    .card{margin-top:18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .card-header{padding:18px 18px 0 18px}
+    .card-title{margin:0;font-size:18px}
+    .card-content{padding:16px 18px 18px 18px}
+    .btn{display:inline-flex;align-items:center;gap:10px;border:0;border-radius:12px;background:#111827;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn-outline{background:#fff;color:#111827;border:1px solid var(--border)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .kpi{padding:14px;border:1px solid var(--border);border-radius:12px;background:#fff}
+    .kpi .label{color:var(--muted);font-size:13px}
+    .kpi .value{font-size:22px;font-weight:800;margin-top:6px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:10px 8px;text-align:left;font-size:14px}
+    th{color:var(--muted);font-weight:700}
+    td.num, th.num{text-align:right}
+    .row-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .page-title{margin:0;font-size:32px;letter-spacing:-.02em}
+    .page-subtitle{margin:6px 0 0 0;color:var(--muted)}
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+  </style>
+</head>
+
+<body>
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="nav-left">
+        <a href="./index.html" class="nav-logo">
+          <i data-lucide="file-text"></i> Troca XML
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="./index.html"><i data-lucide="receipt-text"></i> Relatório por Imposto</a>
+          <a class="nav-link active" href="./report.html"><i data-lucide="bar-chart-3"></i> Relatórios</a>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-outline" onclick="window.location.href='./index.html'"><i data-lucide="arrow-left"></i> Voltar</button>
+        <button class="btn" onclick="window.print()"><i data-lucide="printer"></i> Imprimir</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="row-top">
+      <div>
+        <h1 class="page-title">Relatórios</h1>
+        <p class="page-subtitle">CST ICMS + CFOP e totais por imposto</p>
+      </div>
+    </div>
+
+    <div class="card" id="emptyState" style="display:none;">
+      <div class="card-content">
+        Nenhum relatório encontrado. Volte e processe um ZIP.
+      </div>
+    </div>
+
+    <div class="card" id="kpisCard" style="display:none;">
+      <div class="card-header"><h2 class="card-title">Resumo</h2></div>
+      <div class="card-content">
+        <div class="grid">
+          <div class="kpi">
+            <div class="label">Total de XML</div>
+            <div class="value" id="kpiTotalXml">0</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Total Itens (Σ vProd)</div>
+            <div class="value" id="kpiTotalValor">R$ 0,00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="impostosCard" style="display:none;">
+      <div class="card-header"><h2 class="card-title">Relatório por Imposto</h2></div>
+      <div class="card-content">
+        <div class="grid">
+          <div class="kpi"><div class="label">ICMS (Σ vICMS)</div><div class="value" id="icmsTotal">R$ 0,00</div></div>
+          <div class="kpi"><div class="label">PIS (Σ vPIS)</div><div class="value" id="pisTotal">R$ 0,00</div></div>
+          <div class="kpi"><div class="label">COFINS (Σ vCOFINS)</div><div class="value" id="cofinsTotal">R$ 0,00</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="chartCard" style="display:none;">
+      <div class="card-header"><h2 class="card-title">Gráfico (Top CST+CFOP por Valor)</h2></div>
+      <div class="card-content">
+        <canvas id="chartTop"></canvas>
+      </div>
+    </div>
+
+    <div class="card" id="tableCard" style="display:none;">
+      <div class="card-header"><h2 class="card-title">Tabela CST ICMS + CFOP</h2></div>
+      <div class="card-content">
+        <table>
+          <thead>
+            <tr>
+              <th>CST ICMS</th>
+              <th>CFOP</th>
+              <th class="num">Qtd XML</th>
+              <th class="num">Valor Itens (Σ vProd)</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyCstCfop"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    lucide.createIcons();
+
+    const raw = localStorage.getItem("RELATORIO_JSON");
+    if (!raw) {
+      document.getElementById("emptyState").style.display = "block";
+    } else {
+      const data = JSON.parse(raw);
+
+      const fmtBRL = (n) => (n || 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+
+      document.getElementById("kpisCard").style.display = "block";
+      document.getElementById("impostosCard").style.display = "block";
+      document.getElementById("chartCard").style.display = "block";
+      document.getElementById("tableCard").style.display = "block";
+
+      document.getElementById("kpiTotalXml").textContent = data.total_xml || 0;
+      document.getElementById("kpiTotalValor").textContent = fmtBRL(data.total_valor_itens || 0);
+
+      document.getElementById("icmsTotal").textContent = fmtBRL(data.impostos?.ICMS || 0);
+      document.getElementById("pisTotal").textContent = fmtBRL(data.impostos?.PIS || 0);
+      document.getElementById("cofinsTotal").textContent = fmtBRL(data.impostos?.COFINS || 0);
+
+      // tabela (ordenar por valor desc)
+      const rows = Object.values(data.por_cst_cfop || {})
+        .sort((a,b) => (b.valor_itens||0) - (a.valor_itens||0));
+
+      const tbody = document.getElementById("tbodyCstCfop");
+      tbody.innerHTML = "";
+      for (const r of rows){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.cst}</td>
+          <td>${r.cfop}</td>
+          <td class="num">${r.qtd_xml}</td>
+          <td class="num">${fmtBRL(r.valor_itens)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // gráfico top 12
+      const top = rows.slice(0, 12);
+      new Chart(document.getElementById("chartTop"), {
+        type: "bar",
+        data: {
+          labels: top.map(x => `${x.cst} / ${x.cfop}`),
+          datasets: [{
+            label: "Valor Itens (Σ vProd)",
+            data: top.map(x => x.valor_itens || 0)
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: true }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
