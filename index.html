@@ -4,28 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Relatório por Imposto - Troca XML (Static)</title>
-
-  <!-- Ícones -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
-  <!-- CSS embutido (para ficar no mesmo estilo sem /static) -->
   <style>
     :root{
-      --bg:#f6f8fb;
-      --card:#ffffff;
-      --text:#0f172a;
-      --muted:#64748b;
-      --border:#e2e8f0;
-      --primary:#0f172a;
-      --primary2:#111827;
-      --btn:#0f172a;
-      --btnText:#ffffff;
-      --shadow:0 10px 24px rgba(15,23,42,.08);
-      --radius:14px;
+      --bg:#f6f8fb; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0;
+      --shadow:0 10px 24px rgba(15,23,42,.08); --radius:14px;
     }
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);background:var(--bg)}
-    .navbar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border)}
+    .navbar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:10}
     .nav-container{max-width:1100px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
     .nav-left{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
     .nav-logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font-weight:800}
@@ -33,25 +21,25 @@
     .nav-link{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;text-decoration:none;color:var(--text);border:1px solid transparent}
     .nav-link:hover{background:#f1f5f9;border-color:var(--border)}
     .nav-link.active{background:#eef2ff;border-color:#c7d2fe}
-    .nav-icon{width:18px;height:18px}
     .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:#fff;font-size:13px}
     .container{max-width:1100px;margin:0 auto;padding:26px 18px 60px}
     .page-title{margin:0;font-size:34px;letter-spacing:-.02em}
     .page-subtitle{margin:6px 0 0 0;color:var(--muted)}
+    .row-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .card{margin-top:18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
     .card-header{padding:18px 18px 0 18px}
     .card-title{margin:0;font-size:18px}
     .card-content{padding:16px 18px 18px 18px}
     .btn{display:inline-flex;align-items:center;gap:10px;border:0;border-radius:12px;background:#111827;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.6;cursor:not-allowed}
-    .btn-sm{padding:9px 12px;border-radius:12px}
-    .btn-primary{background:#0f172a}
+    .btn-sm{padding:9px 12px}
+    .btn-outline{background:#fff;color:#111827;border:1px solid var(--border)}
     .input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#fff}
-    .note{margin-top:10px;padding:10px 12px;border:1px dashed var(--border);border-radius:12px;color:var(--muted);background:#fbfdff}
-    .row-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    @media (max-width:640px){
-      .page-title{font-size:26px}
-    }
+    .note{margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fbfdff;color:var(--muted)}
+    .progress-wrap{margin-top:12px;display:none;gap:10px;align-items:center}
+    .progress{width:100%;height:12px;border:1px solid var(--border);border-radius:999px;background:#fff;overflow:hidden}
+    .progress > div{height:100%;width:0%}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
   </style>
 </head>
 
@@ -62,14 +50,12 @@
         <a href="./index.html" class="nav-logo">
           <i data-lucide="file-text"></i> Troca XML
         </a>
-
         <div class="nav-links">
-          <a class="nav-link" href="./index.html"><i data-lucide="home" class="nav-icon"></i> Início</a>
-          <a class="nav-link" href="./report.html"><i data-lucide="bar-chart-3" class="nav-icon"></i> Relatórios</a>
-          <a class="nav-link active" href="./index.html"><i data-lucide="receipt-text" class="nav-icon"></i> Relatório por Imposto</a>
+          <a class="nav-link" href="./index.html"><i data-lucide="home"></i> Início</a>
+          <a class="nav-link" href="./report.html"><i data-lucide="bar-chart-3"></i> Relatórios</a>
+          <a class="nav-link active" href="./index.html"><i data-lucide="receipt-text"></i> Relatório por Imposto</a>
         </div>
       </div>
-
       <span class="badge"><i data-lucide="circle-dot"></i> Modo Static (sem servidor)</span>
     </div>
   </nav>
@@ -80,12 +66,9 @@
         <h1 class="page-title">Relatório por Imposto</h1>
         <p class="page-subtitle">Processe um ZIP para gerar este relatório</p>
       </div>
-
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="btn btn-primary btn-sm" type="button" onclick="window.print()">
-          <i data-lucide="printer"></i> Imprimir
-        </button>
-      </div>
+      <button class="btn btn-sm" type="button" onclick="window.print()">
+        <i data-lucide="printer"></i> Imprimir
+      </button>
     </div>
 
     <div class="card">
@@ -94,14 +77,21 @@
       </div>
 
       <div class="card-content">
-        <form id="resumoUploadForm" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;max-width:720px;">
-          <input class="input" type="file" id="resumoZip" accept=".zip" required />
-          <button class="btn" type="submit" id="btnResumoProcessar">
+        <form id="uploadForm" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;max-width:780px;">
+          <input class="input" type="file" id="zipInput" accept=".zip" required />
+          <button class="btn" type="submit" id="btnProcessar">
             <i data-lucide="wand-2"></i> Processar
           </button>
         </form>
 
-        <div id="resumoProgress" class="note" style="display:none;">Iniciando processamento...</div>
+        <div id="statusBox" class="note" style="display:none;">
+          <div id="statusText">Aguardando...</div>
+          <div class="progress-wrap" id="progressWrap">
+            <div class="progress"><div id="progressFill"></div></div>
+            <div class="mono" style="min-width:90px;text-align:right;" id="progressLabel">0%</div>
+          </div>
+          <div class="mono" style="margin-top:8px;" id="progressDetail"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -109,43 +99,95 @@
   <script>
     lucide.createIcons();
 
-    // Worker que faz o processamento
-    const worker = new Worker("./worker.js", { type: "classic" });
+    const worker = new Worker("./worker.js"); // classic
 
-    const form = document.getElementById("resumoUploadForm");
-    const progress = document.getElementById("resumoProgress");
-    const btn = document.getElementById("btnResumoProcessar");
-    const input = document.getElementById("resumoZip");
+    const form = document.getElementById("uploadForm");
+    const zipInput = document.getElementById("zipInput");
+    const btn = document.getElementById("btnProcessar");
+
+    const statusBox = document.getElementById("statusBox");
+    const statusText = document.getElementById("statusText");
+    const progressWrap = document.getElementById("progressWrap");
+    const progressFill = document.getElementById("progressFill");
+    const progressLabel = document.getElementById("progressLabel");
+    const progressDetail = document.getElementById("progressDetail");
+
+    let lastMsgAt = 0;
+    let watchdog = null;
+
+    function setProgress(pct, processed, total, stage){
+      progressWrap.style.display = "flex";
+      progressFill.style.width = `${pct}%`;
+      progressLabel.textContent = `${pct}%`;
+      progressDetail.textContent =
+        `Etapa: ${stage || "-"} | Processados: ${processed ?? "-"} / ${total ?? "-"}`;
+    }
+
+    function showStatus(msg){
+      statusBox.style.display = "block";
+      statusText.textContent = msg;
+    }
+
+    function startWatchdog(){
+      lastMsgAt = Date.now();
+      if (watchdog) clearInterval(watchdog);
+      watchdog = setInterval(() => {
+        const secs = Math.floor((Date.now() - lastMsgAt)/1000);
+        // só para te dar visibilidade quando ele está “rodando” sem mandar msg
+        if (secs >= 5) {
+          statusText.textContent = `Processando... (sem resposta há ${secs}s — pode ser ZIP grande)`;
+        }
+      }, 1000);
+    }
 
     worker.onmessage = (event) => {
+      lastMsgAt = Date.now();
       const msg = event.data || {};
+
+      if (msg.type === "stage") {
+        showStatus(msg.message || "Processando...");
+        if (typeof msg.percent === "number") {
+          setProgress(msg.percent, msg.processed, msg.total, msg.stage);
+        }
+        return;
+      }
+
       if (msg.type === "progress") {
-        progress.style.display = "block";
-        progress.textContent = `Processando... ${msg.percent}%  |  XMLs: ${msg.processed}/${msg.total}`;
+        showStatus("Processando ZIP...");
+        setProgress(msg.percent || 0, msg.processed, msg.total, msg.stage || "parse");
+        return;
       }
+
       if (msg.type === "done") {
-        progress.textContent = "Concluído! Abrindo relatório...";
+        setProgress(100, msg.total || "-", msg.total || "-", "final");
+        showStatus("Concluído! Abrindo relatório...");
         localStorage.setItem("RELATORIO_JSON", JSON.stringify(msg.result));
+        if (watchdog) clearInterval(watchdog);
         window.location.href = "./report.html";
+        return;
       }
+
       if (msg.type === "error") {
-        progress.style.display = "block";
-        progress.textContent = "Erro: " + (msg.error || "Falha no processamento");
-        alert(progress.textContent);
+        if (watchdog) clearInterval(watchdog);
+        showStatus("Erro: " + (msg.error || "Falha no processamento"));
         btn.disabled = false;
+        alert("Erro: " + (msg.error || "Falha no processamento"));
       }
     };
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const file = input.files[0];
+      const file = zipInput.files[0];
       if (!file) return alert("Selecione um ZIP.");
 
       btn.disabled = true;
-      progress.style.display = "block";
-      progress.textContent = "Lendo ZIP...";
+      showStatus("Lendo ZIP...");
+      setProgress(1, 0, "-", "leitura");
+
+      startWatchdog();
 
       const buffer = await file.arrayBuffer();
+      // transfere o buffer (mais rápido)
       worker.postMessage({ zipBuffer: buffer }, [buffer]);
     });
   </script>
