@@ -1,75 +1,47 @@
-// worker.js (classic)
+// worker.js (classic) - versão robusta (sem libs de XML)
+// Usa: fflate para unzip + regex para extrair tags
+
 importScripts("https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js");
-importScripts("https://cdn.jsdelivr.net/npm/fast-xml-parser@4.4.1/dist/fxp.min.js");
 
-const { XMLParser } = fxp;
-
-const parser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseTagValue: true,
-  parseAttributeValue: true,
-  trimValues: true,
-});
-
-function toNum(v) {
-  const n = typeof v === "number" ? v : parseFloat(String(v ?? "0").replace(",", "."));
+function toNum(s) {
+  const n = parseFloat(String(s ?? "0").replace(/\./g, "").replace(",", "."));
   return Number.isFinite(n) ? n : 0;
 }
 
-// soma profunda por chave
-function sumAllByKey(obj, key) {
-  let sum = 0;
-  const stack = [obj];
-  while (stack.length) {
-    const cur = stack.pop();
-    if (!cur || typeof cur !== "object") continue;
-    for (const k of Object.keys(cur)) {
-      const val = cur[k];
-      if (k === key) {
-        if (Array.isArray(val)) sum += val.reduce((a, b) => a + toNum(b), 0);
-        else sum += toNum(val);
-      } else if (val && typeof val === "object") {
-        stack.push(val);
-      }
-    }
-  }
+function sumTag(xmlText, tag) {
+  // soma todas ocorrências: <tag>valor</tag>
+  const re = new RegExp(`<${tag}>([^<]+)</${tag}>`, "g");
+  let m, sum = 0;
+  while ((m = re.exec(xmlText)) !== null) sum += toNum(m[1]);
   return sum;
 }
 
-function getFirstByKeys(json, keys) {
-  const stack = [json];
-  while (stack.length) {
-    const cur = stack.pop();
-    if (!cur || typeof cur !== "object") continue;
-    for (const k of Object.keys(cur)) {
-      const v = cur[k];
-      if (keys.includes(k)) return String(v ?? "").trim();
-      if (v && typeof v === "object") stack.push(v);
-    }
-  }
-  return "";
+function firstTag(xmlText, tag) {
+  const re = new RegExp(`<${tag}>([^<]+)</${tag}>`);
+  const m = xmlText.match(re);
+  return m ? String(m[1]).trim() : "";
 }
 
-function getCFOP(json) {
-  return getFirstByKeys(json, ["CFOP", "cfop"]) || "0000";
-}
-
-function getCSTICMS(json) {
-  const csosn = getFirstByKeys(json, ["CSOSN"]);
+function getCSTICMS(xmlText) {
+  // prioridade: CSOSN (Simples) -> CST
+  const csosn = firstTag(xmlText, "CSOSN");
   if (csosn) return `CSOSN ${csosn}`;
-  const cst = getFirstByKeys(json, ["CST"]);
+  const cst = firstTag(xmlText, "CST");
   if (cst) return `CST ${cst}`;
   return "CST 000";
+}
+
+function getCFOP(xmlText) {
+  return firstTag(xmlText, "CFOP") || "0000";
 }
 
 function postStage(stage, message, percent, processed, total) {
   self.postMessage({ type: "stage", stage, message, percent, processed, total });
 }
 
-function sleep0() {
-  return new Promise((r) => setTimeout(r, 0));
+function postProgress(stage, processed, total) {
+  const percent = total ? Math.round((processed / total) * 100) : 100;
+  self.postMessage({ type: "progress", stage, percent, processed, total });
 }
 
 self.onmessage = async (event) => {
@@ -82,7 +54,7 @@ self.onmessage = async (event) => {
     const zipData = new Uint8Array(zipBuffer);
     const unzipped = fflate.unzipSync(zipData);
 
-    postStage("scan", "Listando XMLs...", 5, 0, "-");
+    postStage("scan", "Listando arquivos XML...", 5, 0, "-");
 
     const names = Object.keys(unzipped).filter(n => n.toLowerCase().endsWith(".xml"));
     const total = names.length;
@@ -98,30 +70,31 @@ self.onmessage = async (event) => {
       impostos: { ICMS: 0, PIS: 0, COFINS: 0 }
     };
 
+    postStage("parse", "Processando XMLs...", 8, 0, total);
+
     let processed = 0;
 
-    // lote para não “parecer travado”
-    const BATCH = 30;
+    // manda progresso com frequência (inclusive em ZIP pequeno)
+    const BATCH = 1;
 
-    postStage("parse", "Iniciando leitura dos XMLs...", 8, 0, total);
-
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
+    for (const name of names) {
       const xmlText = new TextDecoder().decode(unzipped[name]);
-      const json = parser.parse(xmlText);
 
-      const vProd = sumAllByKey(json, "vProd");
-      const vICMS = sumAllByKey(json, "vICMS");
-      const vPIS = sumAllByKey(json, "vPIS");
-      const vCOFINS = sumAllByKey(json, "vCOFINS");
+      // IMPORTANTÍSSIMO:
+      // vProd aparece em itens e totais; aqui somamos todos vProd encontrados no XML
+      // (se depois você quiser “somar só itens”, eu ajusto)
+      const vProd = sumTag(xmlText, "vProd");
+      const vICMS = sumTag(xmlText, "vICMS");
+      const vPIS = sumTag(xmlText, "vPIS");
+      const vCOFINS = sumTag(xmlText, "vCOFINS");
 
       resumo.total_valor_itens += vProd;
       resumo.impostos.ICMS += vICMS;
       resumo.impostos.PIS += vPIS;
       resumo.impostos.COFINS += vCOFINS;
 
-      const cst = getCSTICMS(json);
-      const cfop = getCFOP(json);
+      const cst = getCSTICMS(xmlText);
+      const cfop = getCFOP(xmlText);
       const key = `${cst}__${cfop}`;
 
       if (!resumo.por_cst_cfop[key]) {
@@ -133,11 +106,8 @@ self.onmessage = async (event) => {
       resumo.total_xml += 1;
       processed += 1;
 
-      // manda progresso por lote
       if (processed % BATCH === 0 || processed === total) {
-        const percent = Math.max(10, Math.round((processed / total) * 100));
-        self.postMessage({ type: "progress", stage: "parse", percent, processed, total });
-        await sleep0(); // devolve tempo ao navegador e mantém “vivo”
+        postProgress("parse", processed, total);
       }
     }
 
