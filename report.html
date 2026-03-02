@@ -88,7 +88,7 @@
             <div class="value" id="kpiTotalXml">0</div>
           </div>
           <div class="kpi">
-            <div class="label">Total Itens (Σ vProd)</div>
+            <div class="label">Valor Total Itens (Σ vProd dos itens)</div>
             <div class="value" id="kpiTotalValor">R$ 0,00</div>
           </div>
         </div>
@@ -107,7 +107,7 @@
     </div>
 
     <div class="card" id="chartCard" style="display:none;">
-      <div class="card-header"><h2 class="card-title">Gráfico (Top CST+CFOP por Valor)</h2></div>
+      <div class="card-header"><h2 class="card-title">Gráfico Pizza (Top CST+CFOP por Valor)</h2></div>
       <div class="card-content">
         <canvas id="chartTop"></canvas>
       </div>
@@ -121,7 +121,7 @@
             <tr>
               <th>CST ICMS</th>
               <th>CFOP</th>
-              <th class="num">Qtd XML</th>
+              <th class="num">Qtd Itens</th>
               <th class="num">Valor Itens (Σ vProd)</th>
             </tr>
           </thead>
@@ -171,21 +171,30 @@
         tbody.appendChild(tr);
       }
 
-      // gráfico top 12
+      // gráfico pizza top 12
       const top = rows.slice(0, 12);
+
       new Chart(document.getElementById("chartTop"), {
-        type: "bar",
+        type: "pie",
         data: {
           labels: top.map(x => `${x.cst} / ${x.cfop}`),
           datasets: [{
             label: "Valor Itens (Σ vProd)",
-            data: top.map(x => x.valor_itens || 0)
+            data: top.map(x => x.valor_itens || 0),
           }]
         },
         options: {
           responsive: true,
           plugins: {
-            legend: { display: true }
+            legend: { position: "right" },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.raw || 0;
+                  return `${ctx.label}: ${v.toLocaleString("pt-BR", { style:"currency", currency:"BRL" })}`;
+                }
+              }
+            }
           }
         }
       });
