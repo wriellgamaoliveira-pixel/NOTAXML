@@ -33,7 +33,6 @@
     .btn{display:inline-flex;align-items:center;gap:10px;border:0;border-radius:12px;background:#111827;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.6;cursor:not-allowed}
     .btn-sm{padding:9px 12px}
-    .btn-outline{background:#fff;color:#111827;border:1px solid var(--border)}
     .input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#fff}
     .note{margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fbfdff;color:var(--muted)}
     .progress-wrap{margin-top:12px;display:none;gap:10px;align-items:center}
@@ -99,7 +98,11 @@
   <script>
     lucide.createIcons();
 
-    const worker = new Worker("./worker.js"); // classic
+    const worker = new Worker("./worker.js");
+    worker.onerror = (e) => {
+      console.error("Worker error:", e);
+      alert("Erro no worker.js. Abra o Console (F12) para ver detalhes.");
+    };
 
     const form = document.getElementById("uploadForm");
     const zipInput = document.getElementById("zipInput");
@@ -115,6 +118,11 @@
     let lastMsgAt = 0;
     let watchdog = null;
 
+    function showStatus(msg){
+      statusBox.style.display = "block";
+      statusText.textContent = msg;
+    }
+
     function setProgress(pct, processed, total, stage){
       progressWrap.style.display = "flex";
       progressFill.style.width = `${pct}%`;
@@ -123,19 +131,13 @@
         `Etapa: ${stage || "-"} | Processados: ${processed ?? "-"} / ${total ?? "-"}`;
     }
 
-    function showStatus(msg){
-      statusBox.style.display = "block";
-      statusText.textContent = msg;
-    }
-
     function startWatchdog(){
       lastMsgAt = Date.now();
       if (watchdog) clearInterval(watchdog);
       watchdog = setInterval(() => {
         const secs = Math.floor((Date.now() - lastMsgAt)/1000);
-        // só para te dar visibilidade quando ele está “rodando” sem mandar msg
         if (secs >= 5) {
-          statusText.textContent = `Processando... (sem resposta há ${secs}s — pode ser ZIP grande)`;
+          statusText.textContent = `Processando... (sem resposta há ${secs}s)`;
         }
       }, 1000);
     }
@@ -183,11 +185,9 @@
       btn.disabled = true;
       showStatus("Lendo ZIP...");
       setProgress(1, 0, "-", "leitura");
-
       startWatchdog();
 
       const buffer = await file.arrayBuffer();
-      // transfere o buffer (mais rápido)
       worker.postMessage({ zipBuffer: buffer }, [buffer]);
     });
   </script>
