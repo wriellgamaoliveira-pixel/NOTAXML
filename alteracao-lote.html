@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alteracao em Lote - NotaXML</title>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="nav-left">
+        <a href="index.html" class="nav-logo">
+          <i data-lucide="file-text"></i>
+          <span>NotaXML</span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="index.html"><i data-lucide="home"></i> Inicio</a>
+          <a class="nav-link" href="nota-unica.html"><i data-lucide="file-search"></i> Nota Unica</a>
+          <a class="nav-link" href="relatorio-cclass.html"><i data-lucide="layers"></i> Relatorio cClass</a>
+          <a class="nav-link" href="relatorio-imposto.html"><i data-lucide="receipt"></i> Relatorio Imposto</a>
+          <a class="nav-link" href="relatorio-cst.html"><i data-lucide="bar-chart-3"></i> Relatorio CST/NCM</a>
+          <a class="nav-link active" href="alteracao-lote.html"><i data-lucide="edit-3"></i> Alteracao em Lote</a>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="module-selector">
+          <label for="moduleSelect">Modulo:</label>
+          <select id="moduleSelect" class="select">
+            <option value="nfe">NF-e (mod 55)</option>
+            <option value="nfce">NFC-e (mod 65)</option>
+            <option value="nfse">NFS-e</option>
+            <option value="nfcom">NFCom</option>
+          </select>
+        </div>
+        <span class="badge">
+          <i data-lucide="hard-drive"></i>
+          <span id="dbStatus">IndexedDB</span>
+        </span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Alteracao em Lote</h1>
+        <p class="page-subtitle">Modifique XMLs em massa e baixe o resultado em ZIP</p>
+      </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card" style="background: #fef3c7; border-color: #fde68a;">
+      <div class="card-content" style="display: flex; gap: 12px; align-items: flex-start;">
+        <i data-lucide="alert-triangle" style="color: #d97706; flex-shrink: 0;"></i>
+        <div>
+          <strong style="color: #92400e;">Importante:</strong>
+          <p style="color: #92400e; margin: 4px 0 0 0;">
+            As alteracoes sao aplicadas em memoria e exportadas como ZIP. Os XMLs originais no banco de dados nao sao modificados.
+            Certifique-se de ter importado as notas antes de usar esta funcao.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #dbeafe;">
+          <i data-lucide="file-text" style="color: #2563eb;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">XMLs Disponiveis</span>
+          <span class="stat-value" id="statXmls">0</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #dcfce7;">
+          <i data-lucide="check-circle" style="color: #16a34a;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Modulo Atual</span>
+          <span class="stat-value" id="statModulo">NF-e</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alteracao por cClass/CFOP -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="layers"></i>
+          Alterar cClass por CFOP
+        </h2>
+      </div>
+      <div class="card-content">
+        <p class="text-muted" style="margin-bottom: 16px;">
+          Altera o valor de cClass em todos os itens que possuem o CFOP especificado.
+        </p>
+        <form id="formCfop" class="form-row">
+          <div class="form-group">
+            <label class="form-label">CFOP de Origem</label>
+            <input type="text" class="input" id="cfopOrigem" placeholder="Ex: 5102" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Novo cClass</label>
+            <input type="text" class="input" id="novoCclass" placeholder="Ex: 1.01.01" required />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="play"></i> Processar
+            </button>
+          </div>
+        </form>
+        <div id="progressCfop" class="progress-section" style="display: none;">
+          <div class="progress-header">
+            <span id="stageCfop">Processando...</span>
+            <span id="percentCfop">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="fillCfop"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alteracao por Descricao -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="text"></i>
+          Alterar por Descricao do Produto
+        </h2>
+      </div>
+      <div class="card-content">
+        <p class="text-muted" style="margin-bottom: 16px;">
+          Altera o CFOP e/ou cClass de itens que contem o texto especificado na descricao (xProd).
+        </p>
+        <form id="formDescricao" class="form-row">
+          <div class="form-group">
+            <label class="form-label">Texto na Descricao</label>
+            <input type="text" class="input" id="textoDescricao" placeholder="Ex: SERVICO" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Novo CFOP (opcional)</label>
+            <input type="text" class="input" id="novoCfopDesc" placeholder="Ex: 5102" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Novo cClass (opcional)</label>
+            <input type="text" class="input" id="novoCclassDesc" placeholder="Ex: 1.01.01" />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="play"></i> Processar
+            </button>
+          </div>
+        </form>
+        <div id="progressDesc" class="progress-section" style="display: none;">
+          <div class="progress-header">
+            <span id="stageDesc">Processando...</span>
+            <span id="percentDesc">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="fillDesc"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remover CFOP por CST -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="trash-2"></i>
+          Remover CFOP por CST ICMS
+        </h2>
+      </div>
+      <div class="card-content">
+        <p class="text-muted" style="margin-bottom: 16px;">
+          Remove (esvazia) o CFOP de todos os itens que possuem o CST ICMS especificado.
+        </p>
+        <form id="formRemoverCst" class="form-row">
+          <div class="form-group">
+            <label class="form-label">CST ICMS</label>
+            <input type="text" class="input" id="cstRemover" placeholder="Ex: 00, 10, 40" required />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button type="submit" class="btn btn-danger">
+              <i data-lucide="trash-2"></i> Remover CFOP
+            </button>
+          </div>
+        </form>
+        <div id="progressCst" class="progress-section" style="display: none;">
+          <div class="progress-header">
+            <span id="stageCst">Processando...</span>
+            <span id="percentCst">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="fillCst"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remover CFOP por cClass -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="x-circle"></i>
+          Remover CFOP por cClass
+        </h2>
+      </div>
+      <div class="card-content">
+        <p class="text-muted" style="margin-bottom: 16px;">
+          Remove (esvazia) o CFOP de todos os itens que possuem o cClass especificado.
+        </p>
+        <form id="formRemoverCclass" class="form-row">
+          <div class="form-group">
+            <label class="form-label">cClass</label>
+            <input type="text" class="input" id="cclassRemover" placeholder="Ex: 1.01.01" required />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button type="submit" class="btn btn-danger">
+              <i data-lucide="trash-2"></i> Remover CFOP
+            </button>
+          </div>
+        </form>
+        <div id="progressCclass" class="progress-section" style="display: none;">
+          <div class="progress-header">
+            <span id="stageCclass">Processando...</span>
+            <span id="percentCclass">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="fillCclass"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Download Result -->
+    <div class="card" id="downloadCard" style="display: none;">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="check-circle" style="color: #16a34a;"></i>
+          Processamento Concluido
+        </h2>
+      </div>
+      <div class="card-content">
+        <p id="resultMessage" style="margin-bottom: 16px;"></p>
+        <button class="btn btn-success" id="btnDownloadZip">
+          <i data-lucide="download"></i> Baixar ZIP com XMLs Modificados
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-content">
+      <p>NotaXML - Sistema 100% client-side para processamento de notas fiscais</p>
+    </div>
+  </footer>
+
+  <script src="js/db.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    let currentModule = 'nfe';
+    let resultZipBlob = null;
+    let resultFileName = '';
+
+    async function init() {
+      await NotaDB.init();
+
+      const savedModule = await NotaDB.getMetadata('currentModule');
+      if (savedModule) {
+        currentModule = savedModule;
+        document.getElementById('moduleSelect').value = savedModule;
+      }
+
+      setupEventListeners();
+      await updateStats();
+      lucide.createIcons();
+    }
+
+    function setupEventListeners() {
+      document.getElementById('moduleSelect').addEventListener('change', async (e) => {
+        currentModule = e.target.value;
+        await NotaDB.setMetadata('currentModule', e.target.value);
+        await updateStats();
+      });
+
+      document.getElementById('formCfop').addEventListener('submit', handleCfopSubmit);
+      document.getElementById('formDescricao').addEventListener('submit', handleDescricaoSubmit);
+      document.getElementById('formRemoverCst').addEventListener('submit', handleRemoverCstSubmit);
+      document.getElementById('formRemoverCclass').addEventListener('submit', handleRemoverCclassSubmit);
+      document.getElementById('btnDownloadZip').addEventListener('click', downloadResultZip);
+    }
+
+    async function updateStats() {
+      const count = await NotaDB.countNotas(currentModule);
+      document.getElementById('statXmls').textContent = NotaUtils.formatNumber(count);
+      document.getElementById('statModulo').textContent = currentModule.toUpperCase();
+      document.getElementById('dbStatus').textContent = `${NotaUtils.formatNumber(count)} notas`;
+    }
+
+    function showProgress(prefix, stage, percent) {
+      const section = document.getElementById(`progress${prefix}`);
+      section.style.display = 'block';
+      document.getElementById(`stage${prefix}`).textContent = stage;
+      document.getElementById(`percent${prefix}`).textContent = percent + '%';
+      document.getElementById(`fill${prefix}`).style.width = percent + '%';
+    }
+
+    function hideProgress(prefix) {
+      document.getElementById(`progress${prefix}`).style.display = 'none';
+    }
+
+    function showResult(message, blob, filename) {
+      resultZipBlob = blob;
+      resultFileName = filename;
+      document.getElementById('resultMessage').textContent = message;
+      document.getElementById('downloadCard').style.display = 'block';
+      document.getElementById('downloadCard').scrollIntoView({ behavior: 'smooth' });
+      lucide.createIcons();
+    }
+
+    function downloadResultZip() {
+      if (!resultZipBlob) return;
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(resultZipBlob);
+      link.download = resultFileName;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      NotaUtils.showToast('Download iniciado!', 'success');
+    }
+
+    async function processXmls(filterFn, transformFn, progressPrefix) {
+      showProgress(progressPrefix, 'Carregando XMLs...', 5);
+
+      // Buscar XMLs do banco
+      const xmls = await NotaDB.getAllXMLs(currentModule);
+
+      if (xmls.length === 0) {
+        hideProgress(progressPrefix);
+        NotaUtils.showToast('Nenhum XML encontrado para processar', 'error');
+        return null;
+      }
+
+      showProgress(progressPrefix, 'Processando...', 10);
+
+      const modifiedXmls = {};
+      let processedCount = 0;
+      let modifiedCount = 0;
+
+      for (const xml of xmls) {
+        const content = xml.content;
+
+        // Verificar se atende ao filtro
+        if (filterFn(content)) {
+          // Aplicar transformacao
+          const newContent = transformFn(content);
+          if (newContent !== content) {
+            modifiedXmls[xml.fileName] = newContent;
+            modifiedCount++;
+          }
+        }
+
+        processedCount++;
+        if (processedCount % 100 === 0) {
+          const pct = Math.round(10 + (processedCount / xmls.length) * 80);
+          showProgress(progressPrefix, `Processando... (${processedCount}/${xmls.length})`, pct);
+        }
+      }
+
+      if (modifiedCount === 0) {
+        hideProgress(progressPrefix);
+        NotaUtils.showToast('Nenhum XML foi modificado', 'info');
+        return null;
+      }
+
+      showProgress(progressPrefix, 'Gerando ZIP...', 95);
+
+      // Criar ZIP com os XMLs modificados
+      const zipData = {};
+      for (const [filename, content] of Object.entries(modifiedXmls)) {
+        zipData[filename] = fflate.strToU8(content);
+      }
+
+      const zipped = fflate.zipSync(zipData);
+      const blob = new Blob([zipped], { type: 'application/zip' });
+
+      showProgress(progressPrefix, 'Concluido!', 100);
+
+      setTimeout(() => hideProgress(progressPrefix), 1000);
+
+      return { blob, count: modifiedCount };
+    }
+
+    // Handler: Alterar cClass por CFOP
+    async function handleCfopSubmit(e) {
+      e.preventDefault();
+
+      const cfopOrigem = document.getElementById('cfopOrigem').value.trim();
+      const novoCclass = document.getElementById('novoCclass').value.trim();
+
+      if (!cfopOrigem || !novoCclass) {
+        NotaUtils.showToast('Preencha todos os campos', 'error');
+        return;
+      }
+
+      const result = await processXmls(
+        (content) => content.includes(`<CFOP>${cfopOrigem}</CFOP>`),
+        (content) => {
+          // Encontrar todos os blocos <det> com o CFOP especificado e adicionar/alterar cClass
+          return content.replace(
+            new RegExp(`(<det[^>]*>[\\s\\S]*?<CFOP>${cfopOrigem}</CFOP>[\\s\\S]*?)(<cClass>[^<]*</cClass>)?([\\s\\S]*?</det>)`, 'gi'),
+            (match, before, existingCclass, after) => {
+              if (existingCclass) {
+                return before + `<cClass>${novoCclass}</cClass>` + after;
+              }
+              // Adicionar cClass apos CFOP
+              return before.replace(
+                `<CFOP>${cfopOrigem}</CFOP>`,
+                `<CFOP>${cfopOrigem}</CFOP><cClass>${novoCclass}</cClass>`
+              ) + after;
+            }
+          );
+        },
+        'Cfop'
+      );
+
+      if (result) {
+        const filename = `xmls_cclass_${cfopOrigem}_para_${novoCclass}_${Date.now()}.zip`;
+        showResult(`${result.count} XMLs foram modificados com sucesso!`, result.blob, filename);
+      }
+    }
+
+    // Handler: Alterar por Descricao
+    async function handleDescricaoSubmit(e) {
+      e.preventDefault();
+
+      const textoDescricao = document.getElementById('textoDescricao').value.trim().toUpperCase();
+      const novoCfop = document.getElementById('novoCfopDesc').value.trim();
+      const novoCclass = document.getElementById('novoCclassDesc').value.trim();
+
+      if (!textoDescricao || (!novoCfop && !novoCclass)) {
+        NotaUtils.showToast('Preencha o texto e pelo menos um novo valor', 'error');
+        return;
+      }
+
+      const result = await processXmls(
+        (content) => content.toUpperCase().includes(textoDescricao),
+        (content) => {
+          let modified = content;
+
+          // Encontrar blocos <det> que contem o texto na descricao
+          const detRegex = /<det\b[^>]*>[\s\S]*?<\/det>/gi;
+          modified = modified.replace(detRegex, (detBlock) => {
+            const xProdMatch = detBlock.match(/<xProd>([^<]*)<\/xProd>/i);
+            if (xProdMatch && xProdMatch[1].toUpperCase().includes(textoDescricao)) {
+              let newBlock = detBlock;
+
+              if (novoCfop) {
+                newBlock = newBlock.replace(/<CFOP>[^<]*<\/CFOP>/i, `<CFOP>${novoCfop}</CFOP>`);
+              }
+
+              if (novoCclass) {
+                if (newBlock.includes('<cClass>')) {
+                  newBlock = newBlock.replace(/<cClass>[^<]*<\/cClass>/i, `<cClass>${novoCclass}</cClass>`);
+                } else {
+                  // Adicionar cClass apos CFOP ou xProd
+                  newBlock = newBlock.replace(/<\/prod>/i, `<cClass>${novoCclass}</cClass></prod>`);
+                }
+              }
+
+              return newBlock;
+            }
+            return detBlock;
+          });
+
+          return modified;
+        },
+        'Desc'
+      );
+
+      if (result) {
+        const filename = `xmls_descricao_${textoDescricao.substring(0, 10)}_${Date.now()}.zip`;
+        showResult(`${result.count} XMLs foram modificados com sucesso!`, result.blob, filename);
+      }
+    }
+
+    // Handler: Remover CFOP por CST
+    async function handleRemoverCstSubmit(e) {
+      e.preventDefault();
+
+      const cstRemover = document.getElementById('cstRemover').value.trim();
+
+      if (!cstRemover) {
+        NotaUtils.showToast('Informe o CST', 'error');
+        return;
+      }
+
+      const confirmed = await NotaUtils.confirmAction(
+        `Deseja remover o CFOP de todos os itens com CST ${cstRemover}?`,
+        'Confirmar Remocao'
+      );
+
+      if (!confirmed) return;
+
+      const result = await processXmls(
+        (content) => content.includes(`<CST>${cstRemover}</CST>`) || content.includes(`<CSOSN>${cstRemover}</CSOSN>`),
+        (content) => {
+          let modified = content;
+
+          // Encontrar blocos <det> com o CST especificado e remover CFOP
+          const detRegex = /<det\b[^>]*>[\s\S]*?<\/det>/gi;
+          modified = modified.replace(detRegex, (detBlock) => {
+            if (detBlock.includes(`<CST>${cstRemover}</CST>`) || detBlock.includes(`<CSOSN>${cstRemover}</CSOSN>`)) {
+              return detBlock.replace(/<CFOP>[^<]*<\/CFOP>/i, '<CFOP></CFOP>');
+            }
+            return detBlock;
+          });
+
+          return modified;
+        },
+        'Cst'
+      );
+
+      if (result) {
+        const filename = `xmls_sem_cfop_cst${cstRemover}_${Date.now()}.zip`;
+        showResult(`${result.count} XMLs foram modificados com sucesso!`, result.blob, filename);
+      }
+    }
+
+    // Handler: Remover CFOP por cClass
+    async function handleRemoverCclassSubmit(e) {
+      e.preventDefault();
+
+      const cclassRemover = document.getElementById('cclassRemover').value.trim();
+
+      if (!cclassRemover) {
+        NotaUtils.showToast('Informe o cClass', 'error');
+        return;
+      }
+
+      const confirmed = await NotaUtils.confirmAction(
+        `Deseja remover o CFOP de todos os itens com cClass ${cclassRemover}?`,
+        'Confirmar Remocao'
+      );
+
+      if (!confirmed) return;
+
+      const result = await processXmls(
+        (content) => content.includes(`<cClass>${cclassRemover}</cClass>`),
+        (content) => {
+          let modified = content;
+
+          // Encontrar blocos <det> com o cClass especificado e remover CFOP
+          const detRegex = /<det\b[^>]*>[\s\S]*?<\/det>/gi;
+          modified = modified.replace(detRegex, (detBlock) => {
+            if (detBlock.includes(`<cClass>${cclassRemover}</cClass>`)) {
+              return detBlock.replace(/<CFOP>[^<]*<\/CFOP>/i, '<CFOP></CFOP>');
+            }
+            return detBlock;
+          });
+
+          return modified;
+        },
+        'Cclass'
+      );
+
+      if (result) {
+        const filename = `xmls_sem_cfop_cclass${cclassRemover}_${Date.now()}.zip`;
+        showResult(`${result.count} XMLs foram modificados com sucesso!`, result.blob, filename);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

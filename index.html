@@ -3,193 +3,276 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Relatório por Imposto - Troca XML (Static)</title>
+  <title>NotaXML - Sistema de Processamento de Notas Fiscais</title>
+  <meta name="description" content="Sistema 100% client-side para processamento de XMLs fiscais com suporte a mais de 50.000 notas" />
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-
-  <style>
-    :root{
-      --bg:#f6f8fb; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0;
-      --shadow:0 10px 24px rgba(15,23,42,.08); --radius:14px;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);background:var(--bg)}
-    .navbar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:10}
-    .nav-container{max-width:1100px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .nav-left{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-    .nav-logo{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;font-weight:800}
-    .nav-links{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .nav-link{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;text-decoration:none;color:var(--text);border:1px solid transparent}
-    .nav-link:hover{background:#f1f5f9;border-color:var(--border)}
-    .nav-link.active{background:#eef2ff;border-color:#c7d2fe}
-    .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted);background:#fff;font-size:13px}
-    .container{max-width:1100px;margin:0 auto;padding:26px 18px 60px}
-    .page-title{margin:0;font-size:34px;letter-spacing:-.02em}
-    .page-subtitle{margin:6px 0 0 0;color:var(--muted)}
-    .row-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    .card{margin-top:18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .card-header{padding:18px 18px 0 18px}
-    .card-title{margin:0;font-size:18px}
-    .card-content{padding:16px 18px 18px 18px}
-    .btn{display:inline-flex;align-items:center;gap:10px;border:0;border-radius:12px;background:#111827;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    .btn-sm{padding:9px 12px}
-    .input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#fff}
-    .note{margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#fbfdff;color:var(--muted)}
-    .progress-wrap{margin-top:12px;display:none;gap:10px;align-items:center}
-    .progress{width:100%;height:12px;border:1px solid var(--border);border-radius:999px;background:#fff;overflow:hidden}
-    .progress > div{height:100%;width:0%}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-  </style>
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
-
 <body>
+  <!-- Navbar -->
   <nav class="navbar">
     <div class="nav-container">
       <div class="nav-left">
-        <a href="./index.html" class="nav-logo">
-          <i data-lucide="file-text"></i> Troca XML
+        <a href="index.html" class="nav-logo">
+          <i data-lucide="file-text"></i>
+          <span>NotaXML</span>
         </a>
         <div class="nav-links">
-          <a class="nav-link" href="./index.html"><i data-lucide="home"></i> Início</a>
-          <a class="nav-link" href="./report.html"><i data-lucide="bar-chart-3"></i> Relatórios</a>
-          <a class="nav-link active" href="./index.html"><i data-lucide="receipt-text"></i> Relatório por Imposto</a>
+          <a class="nav-link active" href="index.html">
+            <i data-lucide="home"></i> Inicio
+          </a>
+          <a class="nav-link" href="nota-unica.html">
+            <i data-lucide="file-search"></i> Nota Unica
+          </a>
+          <a class="nav-link" href="relatorio-cclass.html">
+            <i data-lucide="layers"></i> Relatorio cClass
+          </a>
+          <a class="nav-link" href="relatorio-imposto.html">
+            <i data-lucide="receipt"></i> Relatorio Imposto
+          </a>
+          <a class="nav-link" href="relatorio-cst.html">
+            <i data-lucide="bar-chart-3"></i> Relatorio CST/NCM
+          </a>
+          <a class="nav-link" href="alteracao-lote.html">
+            <i data-lucide="edit-3"></i> Alteracao em Lote
+          </a>
         </div>
       </div>
-      <span class="badge"><i data-lucide="circle-dot"></i> Modo Static (sem servidor)</span>
+      <div class="nav-right">
+        <div class="module-selector">
+          <label for="moduleSelect">Modulo:</label>
+          <select id="moduleSelect" class="select">
+            <option value="nfe">NF-e (mod 55)</option>
+            <option value="nfce">NFC-e (mod 65)</option>
+            <option value="nfse">NFS-e</option>
+            <option value="nfcom">NFCom</option>
+          </select>
+        </div>
+        <span class="badge">
+          <i data-lucide="hard-drive"></i>
+          <span id="dbStatus">IndexedDB</span>
+        </span>
+      </div>
     </div>
   </nav>
 
+  <!-- Main Content -->
   <main class="container">
-    <div class="row-top">
+    <!-- Header -->
+    <div class="page-header">
       <div>
-        <h1 class="page-title">Relatório por Imposto</h1>
-        <p class="page-subtitle">Processe um ZIP para gerar este relatório</p>
+        <h1 class="page-title">Sistema de Notas Fiscais</h1>
+        <p class="page-subtitle">Processamento 100% local com suporte a 50.000+ notas usando IndexedDB</p>
       </div>
-      <button class="btn btn-sm" type="button" onclick="window.print()">
-        <i data-lucide="printer"></i> Imprimir
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-outline" id="btnClearDb">
+          <i data-lucide="trash-2"></i> Limpar Banco
+        </button>
+        <button class="btn btn-outline" id="btnExportDb">
+          <i data-lucide="download"></i> Exportar Dados
+        </button>
+      </div>
     </div>
 
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #dbeafe;">
+          <i data-lucide="file-text" style="color: #2563eb;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Total de Notas</span>
+          <span class="stat-value" id="statTotalNotas">0</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #dcfce7;">
+          <i data-lucide="banknote" style="color: #16a34a;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Valor Total</span>
+          <span class="stat-value" id="statValorTotal">R$ 0,00</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #fef3c7;">
+          <i data-lucide="calculator" style="color: #d97706;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Total ICMS</span>
+          <span class="stat-value" id="statTotalIcms">R$ 0,00</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #fce7f3;">
+          <i data-lucide="database" style="color: #db2777;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Armazenamento</span>
+          <span class="stat-value" id="statStorage">0 MB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload Card -->
     <div class="card">
       <div class="card-header">
-        <h2 class="card-title">Gerar Relatório</h2>
+        <h2 class="card-title">
+          <i data-lucide="upload-cloud"></i>
+          Importar Notas Fiscais
+        </h2>
+        <span class="badge badge-info">
+          <i data-lucide="zap"></i> Processamento em Web Worker
+        </span>
       </div>
-
       <div class="card-content">
-        <form id="uploadForm" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;max-width:780px;">
-          <input class="input" type="file" id="zipInput" accept=".zip" required />
-          <button class="btn" type="submit" id="btnProcessar">
-            <i data-lucide="wand-2"></i> Processar
-          </button>
-        </form>
+        <div class="upload-zone" id="uploadZone">
+          <i data-lucide="file-archive" class="upload-icon"></i>
+          <p class="upload-text">Arraste e solte arquivos ZIP aqui</p>
+          <p class="upload-subtext">ou clique para selecionar</p>
+          <input type="file" id="fileInput" accept=".zip" multiple hidden />
+        </div>
 
-        <div id="statusBox" class="note" style="display:none;">
-          <div id="statusText">Aguardando...</div>
-          <div class="progress-wrap" id="progressWrap">
-            <div class="progress"><div id="progressFill"></div></div>
-            <div class="mono" style="min-width:90px;text-align:right;" id="progressLabel">0%</div>
+        <!-- Progress Section -->
+        <div class="progress-section" id="progressSection" style="display: none;">
+          <div class="progress-header">
+            <span id="progressStage">Iniciando...</span>
+            <span id="progressPercent">0%</span>
           </div>
-          <div class="mono" style="margin-top:8px;" id="progressDetail"></div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="progress-details">
+            <span id="progressProcessed">0</span> de <span id="progressTotal">0</span> arquivos
+          </div>
+        </div>
+
+        <div class="upload-info">
+          <div class="info-item">
+            <i data-lucide="check-circle"></i>
+            <span>Suporte a mais de 50.000 notas</span>
+          </div>
+          <div class="info-item">
+            <i data-lucide="check-circle"></i>
+            <span>Armazenamento persistente com IndexedDB</span>
+          </div>
+          <div class="info-item">
+            <i data-lucide="check-circle"></i>
+            <span>Processamento paralelo em segundo plano</span>
+          </div>
+          <div class="info-item">
+            <i data-lucide="check-circle"></i>
+            <span>Funciona 100% offline apos carregar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="zap"></i>
+          Acoes Rapidas
+        </h2>
+      </div>
+      <div class="card-content">
+        <div class="actions-grid">
+          <a href="relatorio-cclass.html" class="action-card">
+            <div class="action-icon" style="background: #dbeafe;">
+              <i data-lucide="layers" style="color: #2563eb;"></i>
+            </div>
+            <div class="action-content">
+              <h3>Relatorio por cClass</h3>
+              <p>Agrupa notas por classificacao contabil</p>
+            </div>
+            <i data-lucide="chevron-right" class="action-arrow"></i>
+          </a>
+
+          <a href="relatorio-imposto.html" class="action-card">
+            <div class="action-icon" style="background: #dcfce7;">
+              <i data-lucide="receipt" style="color: #16a34a;"></i>
+            </div>
+            <div class="action-content">
+              <h3>Relatorio por Imposto</h3>
+              <p>CST ICMS + CFOP e retencoes</p>
+            </div>
+            <i data-lucide="chevron-right" class="action-arrow"></i>
+          </a>
+
+          <a href="relatorio-cst.html" class="action-card" id="actionCst">
+            <div class="action-icon" style="background: #fef3c7;">
+              <i data-lucide="bar-chart-3" style="color: #d97706;"></i>
+            </div>
+            <div class="action-content">
+              <h3>Relatorio CST/NCM</h3>
+              <p>Detalhamento por item fiscal</p>
+            </div>
+            <i data-lucide="chevron-right" class="action-arrow"></i>
+          </a>
+
+          <a href="alteracao-lote.html" class="action-card">
+            <div class="action-icon" style="background: #fce7f3;">
+              <i data-lucide="edit-3" style="color: #db2777;"></i>
+            </div>
+            <div class="action-content">
+              <h3>Alteracao em Lote</h3>
+              <p>Modificar XMLs em massa</p>
+            </div>
+            <i data-lucide="chevron-right" class="action-arrow"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Notes Preview -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="clock"></i>
+          Notas Recentes
+        </h2>
+        <a href="nota-unica.html" class="btn btn-outline btn-sm">
+          Ver Todas <i data-lucide="arrow-right"></i>
+        </a>
+      </div>
+      <div class="card-content">
+        <div class="table-wrap">
+          <table class="table" id="recentNotesTable">
+            <thead>
+              <tr>
+                <th>Numero</th>
+                <th>Emitente</th>
+                <th>Destinatario</th>
+                <th>Emissao</th>
+                <th class="text-right">Valor</th>
+                <th>Modulo</th>
+              </tr>
+            </thead>
+            <tbody id="recentNotesBody">
+              <tr>
+                <td colspan="6" class="text-center text-muted">
+                  Nenhuma nota importada ainda
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </main>
 
-  <script>
-    lucide.createIcons();
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <p>NotaXML - Sistema 100% client-side para processamento de notas fiscais</p>
+      <p class="text-muted">Publicavel diretamente no GitHub Pages</p>
+    </div>
+  </footer>
 
-    const worker = new Worker("./worker.js");
-    worker.onerror = (e) => {
-      console.error("Worker error:", e);
-      alert("Erro no worker.js. Abra o Console (F12) para ver detalhes.");
-    };
-
-    const form = document.getElementById("uploadForm");
-    const zipInput = document.getElementById("zipInput");
-    const btn = document.getElementById("btnProcessar");
-
-    const statusBox = document.getElementById("statusBox");
-    const statusText = document.getElementById("statusText");
-    const progressWrap = document.getElementById("progressWrap");
-    const progressFill = document.getElementById("progressFill");
-    const progressLabel = document.getElementById("progressLabel");
-    const progressDetail = document.getElementById("progressDetail");
-
-    let lastMsgAt = 0;
-    let watchdog = null;
-
-    function showStatus(msg){
-      statusBox.style.display = "block";
-      statusText.textContent = msg;
-    }
-
-    function setProgress(pct, processed, total, stage){
-      progressWrap.style.display = "flex";
-      progressFill.style.width = `${pct}%`;
-      progressLabel.textContent = `${pct}%`;
-      progressDetail.textContent =
-        `Etapa: ${stage || "-"} | Processados: ${processed ?? "-"} / ${total ?? "-"}`;
-    }
-
-    function startWatchdog(){
-      lastMsgAt = Date.now();
-      if (watchdog) clearInterval(watchdog);
-      watchdog = setInterval(() => {
-        const secs = Math.floor((Date.now() - lastMsgAt)/1000);
-        if (secs >= 5) {
-          statusText.textContent = `Processando... (sem resposta há ${secs}s)`;
-        }
-      }, 1000);
-    }
-
-    worker.onmessage = (event) => {
-      lastMsgAt = Date.now();
-      const msg = event.data || {};
-
-      if (msg.type === "stage") {
-        showStatus(msg.message || "Processando...");
-        if (typeof msg.percent === "number") {
-          setProgress(msg.percent, msg.processed, msg.total, msg.stage);
-        }
-        return;
-      }
-
-      if (msg.type === "progress") {
-        showStatus("Processando ZIP...");
-        setProgress(msg.percent || 0, msg.processed, msg.total, msg.stage || "parse");
-        return;
-      }
-
-      if (msg.type === "done") {
-        setProgress(100, msg.total || "-", msg.total || "-", "final");
-        showStatus("Concluído! Abrindo relatório...");
-        localStorage.setItem("RELATORIO_JSON", JSON.stringify(msg.result));
-        if (watchdog) clearInterval(watchdog);
-        window.location.href = "./report.html";
-        return;
-      }
-
-      if (msg.type === "error") {
-        if (watchdog) clearInterval(watchdog);
-        showStatus("Erro: " + (msg.error || "Falha no processamento"));
-        btn.disabled = false;
-        alert("Erro: " + (msg.error || "Falha no processamento"));
-      }
-    };
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const file = zipInput.files[0];
-      if (!file) return alert("Selecione um ZIP.");
-
-      btn.disabled = true;
-      showStatus("Lendo ZIP...");
-      setProgress(1, 0, "-", "leitura");
-      startWatchdog();
-
-      const buffer = await file.arrayBuffer();
-      worker.postMessage({ zipBuffer: buffer }, [buffer]);
-    });
-  </script>
+  <!-- Scripts -->
+  <script src="js/db.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

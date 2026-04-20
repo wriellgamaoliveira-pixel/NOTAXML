@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nota Unica - NotaXML</title>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="nav-left">
+        <a href="index.html" class="nav-logo">
+          <i data-lucide="file-text"></i>
+          <span>NotaXML</span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="index.html"><i data-lucide="home"></i> Inicio</a>
+          <a class="nav-link active" href="nota-unica.html"><i data-lucide="file-search"></i> Nota Unica</a>
+          <a class="nav-link" href="relatorio-cclass.html"><i data-lucide="layers"></i> Relatorio cClass</a>
+          <a class="nav-link" href="relatorio-imposto.html"><i data-lucide="receipt"></i> Relatorio Imposto</a>
+          <a class="nav-link" href="relatorio-cst.html"><i data-lucide="bar-chart-3"></i> Relatorio CST/NCM</a>
+          <a class="nav-link" href="alteracao-lote.html"><i data-lucide="edit-3"></i> Alteracao em Lote</a>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="module-selector">
+          <label for="moduleSelect">Modulo:</label>
+          <select id="moduleSelect" class="select">
+            <option value="nfe">NF-e (mod 55)</option>
+            <option value="nfce">NFC-e (mod 65)</option>
+            <option value="nfse">NFS-e</option>
+            <option value="nfcom">NFCom</option>
+          </select>
+        </div>
+        <span class="badge">
+          <i data-lucide="hard-drive"></i>
+          <span id="dbStatus">IndexedDB</span>
+        </span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Nota Unica</h1>
+        <p class="page-subtitle">Visualize e busque notas fiscais individuais</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-outline" id="btnExportCsv">
+          <i data-lucide="download"></i> Exportar CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="card">
+      <div class="card-content">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Buscar</label>
+            <input type="text" class="input" id="searchInput" placeholder="Numero, emitente, destinatario, CST, CFOP..." />
+          </div>
+          <div class="form-group" style="max-width: 200px;">
+            <label class="form-label">Ordenar por</label>
+            <select class="select" id="orderBy">
+              <option value="dhEmi">Data Emissao</option>
+              <option value="nNF">Numero NF</option>
+              <option value="vNF">Valor</option>
+              <option value="emitente">Emitente</option>
+            </select>
+          </div>
+          <div class="form-group" style="max-width: 150px;">
+            <label class="form-label">Direcao</label>
+            <select class="select" id="orderDir">
+              <option value="desc">Decrescente</option>
+              <option value="asc">Crescente</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes Table -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i data-lucide="list"></i>
+          Lista de Notas
+        </h2>
+        <span class="badge" id="totalBadge">0 notas</span>
+      </div>
+      <div class="card-content" style="padding: 0;">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Numero</th>
+                <th>Serie</th>
+                <th>Emitente</th>
+                <th>Destinatario</th>
+                <th>Emissao</th>
+                <th class="text-right">Valor</th>
+                <th>CST</th>
+                <th>CFOP</th>
+                <th>Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="notasTableBody">
+              <tr>
+                <td colspan="9" class="text-center text-muted">
+                  Carregando...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="paginationContainer"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal de Detalhes -->
+  <div class="modal-overlay" id="modalOverlay" style="display: none;">
+    <div class="modal" style="max-width: 800px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Detalhes da Nota</h3>
+        <button class="modal-close" id="modalClose">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Conteudo dinamico -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnDownloadXml">
+          <i data-lucide="download"></i> Baixar XML
+        </button>
+        <button class="btn btn-outline" id="btnCloseModal">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-content">
+      <p>NotaXML - Sistema 100% client-side para processamento de notas fiscais</p>
+    </div>
+  </footer>
+
+  <script src="js/db.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    let currentModule = 'nfe';
+    let allNotas = [];
+    let filteredNotas = [];
+    let currentPage = 1;
+    const itemsPerPage = 50;
+    let selectedNotaId = null;
+
+    async function init() {
+      await NotaDB.init();
+
+      const savedModule = await NotaDB.getMetadata('currentModule');
+      if (savedModule) {
+        currentModule = savedModule;
+        document.getElementById('moduleSelect').value = savedModule;
+      }
+
+      setupEventListeners();
+      await loadNotas();
+      lucide.createIcons();
+    }
+
+    function setupEventListeners() {
+      document.getElementById('moduleSelect').addEventListener('change', async (e) => {
+        currentModule = e.target.value;
+        await NotaDB.setMetadata('currentModule', e.target.value);
+        await loadNotas();
+      });
+
+      document.getElementById('searchInput').addEventListener('input', NotaUtils.debounce(() => {
+        filterNotas();
+      }, 300));
+
+      document.getElementById('orderBy').addEventListener('change', () => {
+        sortNotas();
+      });
+
+      document.getElementById('orderDir').addEventListener('change', () => {
+        sortNotas();
+      });
+
+      document.getElementById('btnExportCsv').addEventListener('click', exportToCsv);
+
+      document.getElementById('modalClose').addEventListener('click', closeModal);
+      document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+      document.getElementById('modalOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'modalOverlay') closeModal();
+      });
+
+      document.getElementById('btnDownloadXml').addEventListener('click', downloadXml);
+    }
+
+    async function loadNotas() {
+      const tbody = document.getElementById('notasTableBody');
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center">Carregando...</td></tr>';
+
+      try {
+        allNotas = await NotaDB.getNotas({
+          modulo: currentModule,
+          limit: 99999
+        });
+
+        const total = await NotaDB.countNotas(currentModule);
+        document.getElementById('totalBadge').textContent = `${NotaUtils.formatNumber(total)} notas`;
+        document.getElementById('dbStatus').textContent = `${NotaUtils.formatNumber(total)} notas`;
+
+        filterNotas();
+      } catch (error) {
+        console.error('Erro ao carregar notas:', error);
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Erro ao carregar notas</td></tr>';
+      }
+    }
+
+    function filterNotas() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+      if (!searchTerm) {
+        filteredNotas = [...allNotas];
+      } else {
+        filteredNotas = allNotas.filter(nota => {
+          const searchStr = [
+            nota.nNF,
+            nota.emitente,
+            nota.destinatario,
+            nota.cst,
+            nota.cfop,
+            nota.cClass
+          ].join(' ').toLowerCase();
+          return searchStr.includes(searchTerm);
+        });
+      }
+
+      sortNotas();
+    }
+
+    function sortNotas() {
+      const orderBy = document.getElementById('orderBy').value;
+      const orderDir = document.getElementById('orderDir').value;
+
+      filteredNotas.sort((a, b) => {
+        let aVal = a[orderBy] || '';
+        let bVal = b[orderBy] || '';
+
+        if (orderBy === 'vNF') {
+          aVal = parseFloat(aVal) || 0;
+          bVal = parseFloat(bVal) || 0;
+        }
+
+        if (orderDir === 'desc') {
+          return typeof aVal === 'number' ? bVal - aVal : String(bVal).localeCompare(String(aVal));
+        }
+        return typeof aVal === 'number' ? aVal - bVal : String(aVal).localeCompare(String(bVal));
+      });
+
+      currentPage = 1;
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('notasTableBody');
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const pageNotas = filteredNotas.slice(start, end);
+
+      if (pageNotas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhuma nota encontrada</td></tr>';
+        document.getElementById('paginationContainer').innerHTML = '';
+        return;
+      }
+
+      tbody.innerHTML = pageNotas.map(nota => `
+        <tr>
+          <td>${nota.nNF || '-'}</td>
+          <td>${nota.serie || '-'}</td>
+          <td title="${nota.emitente || ''}">${(nota.emitente || '-').substring(0, 25)}${(nota.emitente || '').length > 25 ? '...' : ''}</td>
+          <td title="${nota.destinatario || ''}">${(nota.destinatario || '-').substring(0, 25)}${(nota.destinatario || '').length > 25 ? '...' : ''}</td>
+          <td>${NotaUtils.formatDate(nota.dhEmi)}</td>
+          <td class="text-right">${NotaUtils.formatBRL(nota.vNF)}</td>
+          <td><span class="pill">${nota.cst || '-'}</span></td>
+          <td><span class="pill">${nota.cfop || '-'}</span></td>
+          <td>
+            <button class="btn btn-sm btn-outline" onclick="showDetails('${nota.id}')">
+              <i data-lucide="eye"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      renderPagination();
+      lucide.createIcons();
+    }
+
+    function renderPagination() {
+      const totalPages = Math.ceil(filteredNotas.length / itemsPerPage);
+      const container = document.getElementById('paginationContainer');
+
+      if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="pagination">
+          <button ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(1)">
+            <i data-lucide="chevrons-left"></i>
+          </button>
+          <button ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <span class="pagination-info">
+            Pagina ${currentPage} de ${totalPages} (${NotaUtils.formatNumber(filteredNotas.length)} notas)
+          </span>
+          <button ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})">
+            <i data-lucide="chevron-right"></i>
+          </button>
+          <button ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${totalPages})">
+            <i data-lucide="chevrons-right"></i>
+          </button>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      renderTable();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function showDetails(notaId) {
+      selectedNotaId = notaId;
+      const nota = allNotas.find(n => n.id === notaId);
+      if (!nota) return;
+
+      const modalBody = document.getElementById('modalBody');
+      modalBody.innerHTML = `
+        <div class="stats-grid" style="margin-bottom: 20px;">
+          <div class="stat-card">
+            <div class="stat-content">
+              <span class="stat-label">Numero</span>
+              <span class="stat-value">${nota.nNF || '-'}</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-content">
+              <span class="stat-label">Valor Total</span>
+              <span class="stat-value">${NotaUtils.formatBRL(nota.vNF)}</span>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="margin-bottom: 12px;">Identificacao</h4>
+        <table class="table" style="margin-bottom: 20px;">
+          <tr><th style="width: 150px;">Serie</th><td>${nota.serie || '-'}</td></tr>
+          <tr><th>Codigo</th><td>${nota.cNF || '-'}</td></tr>
+          <tr><th>Modelo</th><td>${nota.mod || '-'}</td></tr>
+          <tr><th>Natureza Op.</th><td>${nota.natOp || '-'}</td></tr>
+          <tr><th>Data Emissao</th><td>${NotaUtils.formatDate(nota.dhEmi)}</td></tr>
+          <tr><th>Data Saida</th><td>${NotaUtils.formatDate(nota.dhSaiEnt)}</td></tr>
+        </table>
+
+        <h4 style="margin-bottom: 12px;">Emitente</h4>
+        <table class="table" style="margin-bottom: 20px;">
+          <tr><th style="width: 150px;">Nome</th><td>${nota.emitente || '-'}</td></tr>
+          <tr><th>CNPJ/CPF</th><td>${nota.emitCNPJ || '-'}</td></tr>
+          <tr><th>IE</th><td>${nota.emitIE || '-'}</td></tr>
+          <tr><th>UF</th><td>${nota.emitUF || '-'}</td></tr>
+        </table>
+
+        <h4 style="margin-bottom: 12px;">Destinatario</h4>
+        <table class="table" style="margin-bottom: 20px;">
+          <tr><th style="width: 150px;">Nome</th><td>${nota.destinatario || '-'}</td></tr>
+          <tr><th>CNPJ/CPF</th><td>${nota.destCNPJ || '-'}</td></tr>
+          <tr><th>IE</th><td>${nota.destIE || '-'}</td></tr>
+          <tr><th>UF</th><td>${nota.destUF || '-'}</td></tr>
+        </table>
+
+        <h4 style="margin-bottom: 12px;">Valores</h4>
+        <table class="table" style="margin-bottom: 20px;">
+          <tr><th style="width: 150px;">Produtos</th><td class="text-right">${NotaUtils.formatBRL(nota.vProd)}</td></tr>
+          <tr><th>Frete</th><td class="text-right">${NotaUtils.formatBRL(nota.vFrete)}</td></tr>
+          <tr><th>Desconto</th><td class="text-right">${NotaUtils.formatBRL(nota.vDesc)}</td></tr>
+          <tr><th>Base ICMS</th><td class="text-right">${NotaUtils.formatBRL(nota.vBC)}</td></tr>
+          <tr><th>ICMS</th><td class="text-right">${NotaUtils.formatBRL(nota.vICMS)}</td></tr>
+          <tr><th>PIS</th><td class="text-right">${NotaUtils.formatBRL(nota.vPIS)}</td></tr>
+          <tr><th>COFINS</th><td class="text-right">${NotaUtils.formatBRL(nota.vCOFINS)}</td></tr>
+          <tr><th>IPI</th><td class="text-right">${NotaUtils.formatBRL(nota.vIPI)}</td></tr>
+          <tr><th>Total NF</th><td class="text-right"><strong>${NotaUtils.formatBRL(nota.vNF)}</strong></td></tr>
+        </table>
+
+        <h4 style="margin-bottom: 12px;">Classificacao</h4>
+        <table class="table">
+          <tr><th style="width: 150px;">CST</th><td>${nota.cst || '-'}</td></tr>
+          <tr><th>CFOP</th><td>${nota.cfop || '-'}</td></tr>
+          <tr><th>cClass</th><td>${nota.cClass || '-'}</td></tr>
+        </table>
+      `;
+
+      document.getElementById('modalOverlay').style.display = 'flex';
+      lucide.createIcons();
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+      selectedNotaId = null;
+    }
+
+    async function downloadXml() {
+      if (!selectedNotaId) return;
+
+      try {
+        const xml = await NotaDB.getXMLByNotaId(selectedNotaId);
+        if (!xml) {
+          NotaUtils.showToast('XML nao encontrado', 'error');
+          return;
+        }
+
+        const blob = new Blob([xml.content], { type: 'application/xml' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = xml.fileName || 'nota.xml';
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        NotaUtils.showToast('XML baixado com sucesso!', 'success');
+      } catch (error) {
+        console.error('Erro ao baixar XML:', error);
+        NotaUtils.showToast('Erro ao baixar XML', 'error');
+      }
+    }
+
+    function exportToCsv() {
+      if (filteredNotas.length === 0) {
+        NotaUtils.showToast('Nenhuma nota para exportar', 'error');
+        return;
+      }
+
+      const columns = [
+        { key: 'nNF', label: 'Numero NF' },
+        { key: 'serie', label: 'Serie' },
+        { key: 'emitente', label: 'Emitente' },
+        { key: 'emitCNPJ', label: 'CNPJ Emitente' },
+        { key: 'destinatario', label: 'Destinatario' },
+        { key: 'destCNPJ', label: 'CNPJ Destinatario' },
+        { key: 'dhEmi', label: 'Emissao', format: 'date' },
+        { key: 'vNF', label: 'Valor NF', format: 'currency' },
+        { key: 'vICMS', label: 'ICMS', format: 'currency' },
+        { key: 'vPIS', label: 'PIS', format: 'currency' },
+        { key: 'vCOFINS', label: 'COFINS', format: 'currency' },
+        { key: 'cst', label: 'CST' },
+        { key: 'cfop', label: 'CFOP' }
+      ];
+
+      const filename = `notas_${currentModule}_${new Date().toISOString().split('T')[0]}.csv`;
+      NotaUtils.exportToCSV(filteredNotas, filename, columns);
+      NotaUtils.showToast('Exportacao concluida!', 'success');
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

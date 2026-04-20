@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatorio CST/NCM - NotaXML</title>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="nav-left">
+        <a href="index.html" class="nav-logo">
+          <i data-lucide="file-text"></i>
+          <span>NotaXML</span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="index.html"><i data-lucide="home"></i> Inicio</a>
+          <a class="nav-link" href="nota-unica.html"><i data-lucide="file-search"></i> Nota Unica</a>
+          <a class="nav-link" href="relatorio-cclass.html"><i data-lucide="layers"></i> Relatorio cClass</a>
+          <a class="nav-link" href="relatorio-imposto.html"><i data-lucide="receipt"></i> Relatorio Imposto</a>
+          <a class="nav-link active" href="relatorio-cst.html"><i data-lucide="bar-chart-3"></i> Relatorio CST/NCM</a>
+          <a class="nav-link" href="alteracao-lote.html"><i data-lucide="edit-3"></i> Alteracao em Lote</a>
+        </div>
+      </div>
+      <div class="nav-right">
+        <div class="module-selector">
+          <label for="moduleSelect">Modulo:</label>
+          <select id="moduleSelect" class="select">
+            <option value="nfe">NF-e (mod 55)</option>
+            <option value="nfce">NFC-e (mod 65)</option>
+            <option value="nfse">NFS-e</option>
+            <option value="nfcom">NFCom</option>
+          </select>
+        </div>
+        <span class="badge">
+          <i data-lucide="hard-drive"></i>
+          <span id="dbStatus">IndexedDB</span>
+        </span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Relatorio CST/NCM</h1>
+        <p class="page-subtitle">Detalhamento por item fiscal (apenas NF-e e NFC-e)</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-outline" onclick="window.print()">
+          <i data-lucide="printer"></i> Imprimir
+        </button>
+        <button class="btn btn-outline" id="btnExportCsv">
+          <i data-lucide="download"></i> Exportar CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #dbeafe;">
+          <i data-lucide="package" style="color: #2563eb;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Total de Itens</span>
+          <span class="stat-value" id="kpiTotalItens">0</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #dcfce7;">
+          <i data-lucide="banknote" style="color: #16a34a;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">Valor Total</span>
+          <span class="stat-value" id="kpiValorTotal">R$ 0,00</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #fef3c7;">
+          <i data-lucide="hash" style="color: #d97706;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">CSTs Distintos</span>
+          <span class="stat-value" id="kpiTotalCst">0</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #fce7f3;">
+          <i data-lucide="barcode" style="color: #db2777;"></i>
+        </div>
+        <div class="stat-content">
+          <span class="stat-label">NCMs Distintos</span>
+          <span class="stat-value" id="kpiTotalNcm">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card">
+      <div class="card-header">
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary tab-btn active" data-tab="cst">Por CST</button>
+          <button class="btn btn-outline tab-btn" data-tab="ncm">Por NCM</button>
+        </div>
+        <div class="toolbar">
+          <input type="text" class="input" id="filterInput" placeholder="Filtrar..." style="max-width: 250px;" />
+          <button class="btn btn-outline btn-sm" id="btnExpandAll">
+            <i data-lucide="maximize-2"></i>
+          </button>
+          <button class="btn btn-outline btn-sm" id="btnCollapseAll">
+            <i data-lucide="minimize-2"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="card-content" style="border-bottom: 1px solid var(--border);">
+        <div class="chart-container">
+          <canvas id="chartMain"></canvas>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card-content" id="tableContainer">
+        <div class="empty-state">
+          <i data-lucide="package"></i>
+          <h3>Nenhum dado encontrado</h3>
+          <p>Importe notas fiscais (NF-e ou NFC-e) para visualizar o relatorio por item</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-content">
+      <p>NotaXML - Sistema 100% client-side para processamento de notas fiscais</p>
+    </div>
+  </footer>
+
+  <script src="js/db.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    let currentModule = 'nfe';
+    let currentTab = 'cst';
+    let cstData = [];
+    let ncmData = [];
+    let chart = null;
+
+    async function init() {
+      await NotaDB.init();
+
+      const savedModule = await NotaDB.getMetadata('currentModule');
+      if (savedModule && (savedModule === 'nfe' || savedModule === 'nfce')) {
+        currentModule = savedModule;
+        document.getElementById('moduleSelect').value = savedModule;
+      }
+
+      setupEventListeners();
+      await loadReport();
+      lucide.createIcons();
+    }
+
+    function setupEventListeners() {
+      document.getElementById('moduleSelect').addEventListener('change', async (e) => {
+        currentModule = e.target.value;
+        await NotaDB.setMetadata('currentModule', e.target.value);
+        await loadReport();
+      });
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('active', 'btn-primary');
+            b.classList.add('btn-outline');
+          });
+          btn.classList.add('active', 'btn-primary');
+          btn.classList.remove('btn-outline');
+          currentTab = btn.dataset.tab;
+          renderChart();
+          renderTable();
+        });
+      });
+
+      document.getElementById('filterInput').addEventListener('input', NotaUtils.debounce(() => {
+        renderTable();
+      }, 300));
+
+      document.getElementById('btnExpandAll').addEventListener('click', () => {
+        document.querySelectorAll('details.item-acc').forEach(d => d.open = true);
+      });
+
+      document.getElementById('btnCollapseAll').addEventListener('click', () => {
+        document.querySelectorAll('details.item-acc').forEach(d => d.open = false);
+      });
+
+      document.getElementById('btnExportCsv').addEventListener('click', exportToCsv);
+    }
+
+    async function loadReport() {
+      try {
+        // Verificar modulo suportado
+        if (currentModule !== 'nfe' && currentModule !== 'nfce') {
+          document.getElementById('tableContainer').innerHTML = `
+            <div class="empty-state">
+              <i data-lucide="alert-circle"></i>
+              <h3>Modulo nao suportado</h3>
+              <p>O relatorio CST/NCM esta disponivel apenas para NF-e e NFC-e</p>
+            </div>
+          `;
+          lucide.createIcons();
+          return;
+        }
+
+        // Carregar itens agregados por CST
+        cstData = await NotaDB.getItensAggregate({
+          modulo: currentModule,
+          groupBy: 'cst',
+          sumFields: ['vProd', 'vICMS', 'vPIS', 'vCOFINS']
+        });
+        cstData.sort((a, b) => (b.vProd || 0) - (a.vProd || 0));
+
+        // Carregar itens agregados por NCM
+        ncmData = await NotaDB.getItensAggregate({
+          modulo: currentModule,
+          groupBy: 'ncm',
+          sumFields: ['vProd', 'vICMS', 'vPIS', 'vCOFINS']
+        });
+        ncmData.sort((a, b) => (b.vProd || 0) - (a.vProd || 0));
+
+        // Calcular totais
+        let totalItens = 0;
+        let totalValor = 0;
+        cstData.forEach(d => {
+          totalItens += d.count || 0;
+          totalValor += d.vProd || 0;
+        });
+
+        // Atualizar KPIs
+        const totals = await NotaDB.getTotals(currentModule);
+        document.getElementById('kpiTotalItens').textContent = NotaUtils.formatNumber(totalItens);
+        document.getElementById('kpiValorTotal').textContent = NotaUtils.formatBRL(totalValor);
+        document.getElementById('kpiTotalCst').textContent = NotaUtils.formatNumber(cstData.length);
+        document.getElementById('kpiTotalNcm').textContent = NotaUtils.formatNumber(ncmData.length);
+        document.getElementById('dbStatus').textContent = `${NotaUtils.formatNumber(totals.count)} notas`;
+
+        renderChart();
+        renderTable();
+
+      } catch (error) {
+        console.error('Erro ao carregar relatorio:', error);
+        NotaUtils.showToast('Erro ao carregar relatorio', 'error');
+      }
+    }
+
+    function renderChart() {
+      const ctx = document.getElementById('chartMain').getContext('2d');
+      if (chart) chart.destroy();
+
+      const data = currentTab === 'cst' ? cstData : ncmData;
+      const top12 = data.slice(0, 12);
+
+      if (top12.length === 0) return;
+
+      const colors = [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
+        '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7'
+      ];
+
+      const labelKey = currentTab === 'cst' ? 'cst' : 'ncm';
+
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: top12.map(d => d[labelKey] || 'N/A'),
+          datasets: [{
+            label: 'Valor Produtos',
+            data: top12.map(d => d.vProd || 0),
+            backgroundColor: colors
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => NotaUtils.formatBRL(ctx.raw)
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                callback: (value) => NotaUtils.formatBRL(value)
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderTable() {
+      const container = document.getElementById('tableContainer');
+      const filter = document.getElementById('filterInput').value.toLowerCase();
+      const data = currentTab === 'cst' ? cstData : ncmData;
+      const labelKey = currentTab === 'cst' ? 'cst' : 'ncm';
+
+      const filtered = filter
+        ? data.filter(d => (d[labelKey] || '').toLowerCase().includes(filter))
+        : data;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <i data-lucide="package"></i>
+            <h3>Nenhum dado encontrado</h3>
+            <p>Importe notas fiscais (NF-e ou NFC-e) para visualizar o relatorio por item</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = filtered.map(group => `
+        <details class="accordion item-acc">
+          <summary>
+            <span><strong>${group[labelKey] || 'N/A'}</strong></span>
+            <span class="pill">
+              ${NotaUtils.formatNumber(group.count)} itens | ${NotaUtils.formatBRL(group.vProd)}
+            </span>
+          </summary>
+          <div class="accordion-body">
+            <div class="stats-grid" style="margin-bottom: 16px;">
+              <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white;">
+                <div class="text-muted" style="font-size: 12px;">Qtd Itens</div>
+                <div style="font-weight: 700;">${NotaUtils.formatNumber(group.count)}</div>
+              </div>
+              <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white;">
+                <div class="text-muted" style="font-size: 12px;">Valor Produtos</div>
+                <div style="font-weight: 700;">${NotaUtils.formatBRL(group.vProd)}</div>
+              </div>
+              <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white;">
+                <div class="text-muted" style="font-size: 12px;">ICMS</div>
+                <div style="font-weight: 700;">${NotaUtils.formatBRL(group.vICMS)}</div>
+              </div>
+              <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white;">
+                <div class="text-muted" style="font-size: 12px;">PIS</div>
+                <div style="font-weight: 700;">${NotaUtils.formatBRL(group.vPIS)}</div>
+              </div>
+              <div style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white;">
+                <div class="text-muted" style="font-size: 12px;">COFINS</div>
+                <div style="font-weight: 700;">${NotaUtils.formatBRL(group.vCOFINS)}</div>
+              </div>
+            </div>
+          </div>
+        </details>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function exportToCsv() {
+      const data = currentTab === 'cst' ? cstData : ncmData;
+      const labelKey = currentTab === 'cst' ? 'cst' : 'ncm';
+
+      if (data.length === 0) {
+        NotaUtils.showToast('Nenhum dado para exportar', 'error');
+        return;
+      }
+
+      const columns = [
+        { key: labelKey, label: currentTab.toUpperCase() },
+        { key: 'count', label: 'Quantidade Itens' },
+        { key: 'vProd', label: 'Valor Produtos', format: 'currency' },
+        { key: 'vICMS', label: 'ICMS', format: 'currency' },
+        { key: 'vPIS', label: 'PIS', format: 'currency' },
+        { key: 'vCOFINS', label: 'COFINS', format: 'currency' }
+      ];
+
+      const filename = `relatorio_${currentTab}_${currentModule}_${new Date().toISOString().split('T')[0]}.csv`;
+      NotaUtils.exportToCSV(data, filename, columns);
+      NotaUtils.showToast('Exportacao concluida!', 'success');
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
